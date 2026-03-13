@@ -1,15 +1,29 @@
 import { http, createConfig } from 'wagmi'
 import { avalancheFuji, polygonAmoy } from 'wagmi/chains'
-import { injected, walletConnect } from 'wagmi/connectors'
+import { injected } from 'wagmi/connectors'
+import { defineChain } from 'viem'
+
+export const monadTestnet = defineChain({
+  id: 10143,
+  name: 'Monad Testnet',
+  nativeCurrency: { name: 'Monad', symbol: 'MON', decimals: 18 },
+  rpcUrls: {
+    default: { http: ['https://testnet-rpc.monad.xyz'] },
+  },
+  blockExplorers: {
+    default: { name: 'MonadExplorer', url: 'https://testnet.monadexplorer.com' },
+  },
+  testnet: true,
+})
 
 export const config = createConfig({
-  chains: [avalancheFuji, polygonAmoy],
+  chains: [monadTestnet, avalancheFuji, polygonAmoy],
   connectors: [
     injected(),
-    // walletConnect({ projectId: process.env.NEXT_PUBLIC_WC_PROJECT_ID || '' }),
   ],
   ssr: true,
   transports: {
+    [monadTestnet.id]: http(),
     [avalancheFuji.id]: http(),
     [polygonAmoy.id]: http(),
   },

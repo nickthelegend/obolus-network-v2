@@ -5,7 +5,9 @@ import { ConnectWalletButton } from "@/components/wallet/connect-wallet-button"
 import { usePrivy } from "@privy-io/react-auth"
 
 export function ConnectGate({ children }: { children: React.ReactNode }) {
-  const { authenticated } = usePrivy()
+  const { authenticated, ready } = usePrivy()
+
+  if (!ready) return null // Or a loading spinner
 
   if (!authenticated) {
     return (

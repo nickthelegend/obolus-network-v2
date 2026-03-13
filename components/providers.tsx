@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
 import { WagmiProvider } from 'wagmi'
 import { PrivyProvider } from '@privy-io/react-auth'
-import { config } from '@/lib/wagmi'
+import { config, monadTestnet } from '@/lib/wagmi'
 import { ThemeProvider } from './theme-provider'
 import { avalancheFuji, polygonAmoy } from 'wagmi/chains'
 
@@ -17,9 +17,10 @@ export function Providers({ children }: { children: ReactNode }) {
       config={{
         appearance: {
           theme: 'dark',
-          accentColor: '#676FFF',
+          accentColor: '#9fd843',
         },
-        supportedChains: [avalancheFuji, polygonAmoy],
+        supportedChains: [monadTestnet, avalancheFuji, polygonAmoy],
+        loginMethods: ['wallet', 'email', 'google'],
       }}
     >
       <WagmiProvider config={config}>

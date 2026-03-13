@@ -28,12 +28,7 @@ export function AppHeader() {
   const activeAccount = user?.wallet
 
   useEffect(() => {
-    // Auto-open refer popup once per session
-    const key = "payease:refer:shown"
-    if (!sessionStorage.getItem(key)) {
-      sessionStorage.setItem(key, "1")
-      setTimeout(() => setOpen(true), 400) // small delay after first paint
-    }
+    // Moved auto-open logic or disabled it to prevent blocking UI
   }, [])
 
   return (

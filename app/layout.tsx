@@ -33,7 +33,7 @@ export const metadata: Metadata = {
     description: "Buy now, pay later with cryptocurrency.",
   },
   alternates: {
-    canonical: "https://irion.dev",
+    canonical: "https://obolus.network",
   },
   category: "Finance",
 }

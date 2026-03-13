@@ -72,7 +72,10 @@ export function LandingPage() {
 
                     <div className="flex flex-col md:flex-row items-center gap-6">
                         <button
-                            onClick={() => login()}
+                            onClick={() => {
+                                console.log("LandingPage: LAUNCH TERMINAL clicked, calling login()")
+                                login()
+                            }}
                             className="bg-primary text-black px-12 py-5 rounded-xl font-bold text-xl hover:brightness-110 transition-all neon-glow min-w-[280px] font-mono uppercase tracking-tighter"
                         >
                             LAUNCH TERMINAL
