@@ -1,10 +1,15 @@
 "use client"
 
 import { PrivyProvider } from '@privy-io/react-auth'
+import { toSolanaWalletConnectors } from "@privy-io/react-auth/solana";
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useState, useEffect, type ReactNode } from 'react'
 import { ThemeProvider } from './theme-provider'
 import { Toaster } from "@/components/ui/sonner"
+
+const solanaConnectors = toSolanaWalletConnectors({
+  shouldAutoConnect: true,
+});
 
 export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(() => new QueryClient())
@@ -23,7 +28,12 @@ export function Providers({ children }: { children: ReactNode }) {
         appearance: {
           theme: 'dark',
           accentColor: '#9fd843',
+          logo: "/logo.png",
+          landingHeader: "OBOLUS // TERMINAL",
+          loginMessage: "Connect to the Frontier",
           showWalletLoginFirst: true,
+          walletChainType: "solana-only",
+          walletList: ["phantom", "solflare", "backpack", "detected_solana_wallets"],
         },
         loginMethods: ['email', 'wallet', 'google', 'twitter', 'apple', 'discord'],
         solanaClusters: [
@@ -32,6 +42,17 @@ export function Providers({ children }: { children: ReactNode }) {
             rpcUrl: 'https://api.devnet.solana.com',
           },
         ],
+        embeddedWallets: {
+          solana: {
+            createOnLogin: "users-without-wallets",
+          },
+          showWalletUIs: false,
+        },
+        externalWallets: {
+          solana: {
+            connectors: solanaConnectors,
+          },
+        },
       }}
     >
       <QueryClientProvider client={queryClient}>
