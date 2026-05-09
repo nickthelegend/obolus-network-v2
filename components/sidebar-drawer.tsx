@@ -15,7 +15,7 @@ import {
   LogOut,
   User
 } from "lucide-react"
-import { useAccount, useDisconnect } from "wagmi"
+import { usePrivy, useWallets } from "@privy-io/react-auth"
 import { cn } from "@/lib/utils"
 
 const NAV_ITEMS = [
@@ -29,8 +29,10 @@ const NAV_ITEMS = [
 
 export function SidebarDrawer({ open, onOpenChange }: { open?: boolean; onOpenChange?: (v: boolean) => void }) {
   const pathname = usePathname()
-  const { address, isConnected } = useAccount()
-  const { disconnect } = useDisconnect()
+  const { logout: disconnect, authenticated: isConnected, user } = usePrivy()
+  const { wallets } = useWallets()
+  const address = wallets[0]?.address || user?.wallet?.address
+
 
   const shortAddress = (a: string) => a.length > 10 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a
 

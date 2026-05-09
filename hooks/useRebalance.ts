@@ -1,7 +1,17 @@
 "use client"
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useAccount } from 'wagmi'
+import { usePrivy, useWallets } from "@privy-io/react-auth"
+// import { useAccount } from 'wagmi' // REMOVED
+
+// --- STUBS ---
+const useAccount = () => {
+  const { user, authenticated } = usePrivy()
+  const { wallets } = useWallets()
+  return { address: wallets[0]?.address || user?.wallet?.address, isConnected: authenticated }
+}
+// -------------
+
 import { api } from '@/lib/api'
 import { useObolusAuth } from './useVaults'
 

@@ -25,9 +25,9 @@ export default function MarketsPage() {
       {/* Header Info */}
       <div className="flex items-center justify-between border-b border-border/20 pb-4">
         <div>
-          <h1 className="text-xl font-bold tracking-tighter text-foreground">MARKETS // LIVE_ONDO_ORACLE_FEED</h1>
+          <h1 className="text-xl font-bold tracking-tighter text-foreground">MARKETS // LIVE_SOLANA_ORACLE_FEED</h1>
           <p className="text-[10px] text-foreground/40 uppercase tracking-[0.2em] mt-1">
-            NETWORK: BSC_MAINNET // SOURCE: ONDO_SYNTHETIC_SHARES
+            NETWORK: SOLANA_DEVNET // SOURCE: AGGREGATED_PRICE_FEED
           </p>
         </div>
         <div className="hidden md:flex items-center gap-2 px-3 py-1 rounded-full border border-primary/30 bg-primary/5 text-[10px] text-primary font-bold tracking-wider uppercase">
@@ -39,9 +39,9 @@ export default function MarketsPage() {
       {/* Stats Bar */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "DATA_SOURCE", value: "ONDO_ORACLE", icon: Globe, color: "text-primary" },
-          { label: "ORACLE_ADDR", value: "0xF4Fd...F15e", icon: Shield, color: "text-foreground/80" },
-          { label: "CHAIN", value: "BSC_MAINNET", icon: Zap, color: "text-foreground/80" },
+          { label: "DATA_SOURCE", value: "SOLANA_PYTH", icon: Globe, color: "text-primary" },
+          { label: "PROGRAM_ID", value: "F4jZ...yXjB", icon: Shield, color: "text-foreground/80" },
+          { label: "CHAIN", value: "SOLANA_DEVNET", icon: Zap, color: "text-foreground/80" },
           { label: "LAST_UPDATE", value: dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleTimeString() : "SYNCING...", icon: Clock, color: "text-green-500" },
         ].map((stat, i) => (
           <div key={i} className="bg-card/20 border border-border/40 rounded-2xl p-5 backdrop-blur-sm group hover:border-primary/30 transition-all">
@@ -55,6 +55,7 @@ export default function MarketsPage() {
           </div>
         ))}
       </div>
+
 
       {/* Asset Price Matrix */}
       <div className="space-y-4">
@@ -161,9 +162,9 @@ export default function MarketsPage() {
       {/* Footer Info */}
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 mt-8 pt-6 border-t border-border/10 text-[9px] text-foreground/40 font-black uppercase tracking-[0.2em]">
         <div className="flex items-center gap-4">
-          <span>ORACLE: ONDO_SYNTHETIC_SHARES</span>
+          <span>ORACLE: SOLANA_PYTH_AGGREGATOR</span>
           <span className="text-primary/60">||</span>
-          <span>BSC_MAINNET: CONNECTED</span>
+          <span>SOLANA_DEVNET: CONNECTED</span>
         </div>
         <div className="flex items-center gap-4">
           <span>LAST_SYNC: {dataUpdatedAt ? new Date(dataUpdatedAt).toISOString() : "N/A"}</span>
@@ -171,6 +172,7 @@ export default function MarketsPage() {
           <span>REFRESH: 30S</span>
         </div>
       </div>
+
     </div>
   )
 }

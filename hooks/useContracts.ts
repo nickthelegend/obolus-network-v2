@@ -1,184 +1,77 @@
-import { useReadContract, useReadContracts } from 'wagmi'
-import { CONTRACT_ADDRESSES } from '@/lib/wagmi'
-import { RWAVaultABI, ObolusOracleABI, MockERC20ABI, ERC20ABI } from '@/lib/abis'
-import { useAccount } from 'wagmi'
-import { formatEther } from 'viem'
+import { usePrivy, useWallets } from "@privy-io/react-auth"
+import { useQuery } from '@tanstack/react-query'
+import { useAnchorProvider } from './use-anchor-provider'
+import { PublicKey } from '@solana/web3.js'
 
-// ── Vault reads ────────────────────────────────────────────
+export function useSolanaBalance(targetAddress?: string) {
+  const { user } = usePrivy()
+  const { wallets } = useWallets()
+  const walletAddress = wallets[0]?.address || user?.wallet?.address
+  const provider = useAnchorProvider()
+  
+  const addressToQuery = targetAddress || walletAddress
 
-export function useVaultPosition(tokenAddress: string) {
-  const { address } = useAccount()
-  const result = useReadContract({
-    address: CONTRACT_ADDRESSES.RWAVault as `0x${string}`,
-    abi: RWAVaultABI,
-    functionName: 'getPosition',
-    args: [address as `0x${string}`, tokenAddress as `0x${string}`],
-    query: { enabled: !!address && !!tokenAddress },
-  })
-  return {
-    ...result,
-    formatted: result.data ? formatEther(result.data as bigint) : '0',
-    raw: result.data as bigint || BigInt(0),
-  }
-}
-
-export function useVaultShares(userAddress?: string) {
-  const { address } = useAccount()
-  const user = userAddress || address
-  const result = useReadContract({
-    address: CONTRACT_ADDRESSES.RWAVault as `0x${string}`,
-    abi: RWAVaultABI,
-    functionName: 'getTotalShares',
-    args: [user as `0x${string}`],
-    query: { enabled: !!user },
-  })
-  return {
-    ...result,
-    formatted: result.data ? formatEther(result.data as bigint) : '0',
-    raw: result.data as bigint || BigInt(0),
-  }
-}
-
-export function useIsTokenAccepted(tokenAddress: string) {
-  return useReadContract({
-    address: CONTRACT_ADDRESSES.RWAVault as `0x${string}`,
-    abi: RWAVaultABI,
-    functionName: 'acceptedTokens',
-    args: [tokenAddress as `0x${string}`],
-    query: { enabled: !!tokenAddress },
+  return useQuery({
+    queryKey: ['solana-balance', addressToQuery],
+    queryFn: async () => {
+      if (!provider || !addressToQuery) return '0'
+      const balance = await provider.connection.getBalance(new PublicKey(addressToQuery))
+      return (balance / 1e9).toFixed(4)
+    },
+    enabled: !!provider && !!addressToQuery,
   })
 }
 
-// ── Oracle reads ───────────────────────────────────────────
+export function useVaultPosition() {
+  const { user } = usePrivy()
+  const { wallets } = useWallets()
+  const address = wallets[0]?.address || user?.wallet?.address
+  const provider = useAnchorProvider()
 
-export function useOracleSValue(tokenAddress: string) {
-  const result = useReadContract({
-    address: CONTRACT_ADDRESSES.ObolusOracle as `0x${string}`,
-    abi: ObolusOracleABI,
-    functionName: 'getSValue',
-    args: [tokenAddress as `0x${string}`],
-    query: { enabled: !!tokenAddress },
+  return useQuery({
+    queryKey: ['vault-position', address],
+    queryFn: async () => {
+      if (!provider || !address) return { formatted: '0', raw: 0 }
+      
+      // Derive PDA: [b"vault", signer.key()]
+      const [vaultPDA] = PublicKey.findProgramAddressSync(
+        [Buffer.from('vault'), new PublicKey(address).toBuffer()],
+        provider.programId
+      )
+
+      const balance = await provider.connection.getBalance(vaultPDA)
+      return {
+        formatted: (balance / 1e9).toFixed(4),
+        raw: balance,
+        hasPosition: balance > 0
+      }
+    },
+    enabled: !!provider && !!address,
   })
-  // getSValue returns (uint128 sValue, bool paused)
-  const [sValue, paused] = (result.data as [bigint, boolean]) || [BigInt(0), false]
-  return {
-    ...result,
-    sValue: sValue ? Number(sValue) / 1e18 : 1.0,
-    paused: paused || false,
-  }
 }
 
-export function useAllRegisteredTokens() {
-  return useReadContract({
-    address: CONTRACT_ADDRESSES.ObolusOracle as `0x${string}`,
-    abi: ObolusOracleABI,
-    functionName: 'getRegisteredTokens',
-  })
-}
-
-// ── Token reads ────────────────────────────────────────────
-
-export function useTokenBalance(tokenAddress: string, userAddress?: string) {
-  const { address } = useAccount()
-  const user = userAddress || address
-  const result = useReadContract({
-    address: tokenAddress as `0x${string}`,
-    abi: ERC20ABI,
-    functionName: 'balanceOf',
-    args: [user as `0x${string}`],
-    query: { enabled: !!user && !!tokenAddress },
-  })
-  return {
-    ...result,
-    formatted: result.data ? formatEther(result.data as bigint) : '0',
-    raw: result.data as bigint || BigInt(0),
-  }
-}
-
-export function useTokenAllowance(tokenAddress: string) {
-  const { address } = useAccount()
-  const result = useReadContract({
-    address: tokenAddress as `0x${string}`,
-    abi: ERC20ABI,
-    functionName: 'allowance',
-    args: [address as `0x${string}`, CONTRACT_ADDRESSES.RWAVault as `0x${string}`],
-    query: { enabled: !!address && !!tokenAddress },
-  })
-  return {
-    ...result,
-    formatted: result.data ? formatEther(result.data as bigint) : '0',
-    raw: result.data as bigint || BigInt(0),
-  }
-}
-
-// Batch read all 9 token balances at once
-export function useAllTokenBalances() {
-  const { address } = useAccount()
-
-  const exclude = ['RWAVault', 'ObolusOracle']
-  const contracts = Object.entries(CONTRACT_ADDRESSES)
-    .filter(([key]) => !exclude.includes(key))
-    .map(([symbol, tokenAddress]) => ({
-      address: tokenAddress as `0x${string}`,
-      abi: ERC20ABI,
-      functionName: 'balanceOf' as const,
-      args: [address as `0x${string}`],
-    }))
-
-  const results = useReadContracts({
-    contracts,
-    query: { enabled: !!address },
-  })
-
-  const symbols = Object.keys(CONTRACT_ADDRESSES)
-    .filter(key => !exclude.includes(key))
-
-  const balances: Record<string, { raw: bigint, formatted: string }> = {}
-  results.data?.forEach((result, i) => {
-    const symbol = symbols[i]
-    const raw = (result.result as bigint) || BigInt(0)
-    balances[symbol] = {
-      raw,
-      formatted: formatEther(raw),
-    }
-  })
-
-  return { ...results, balances }
-}
-
-// Batch read all 9 vault positions at once
+// Stubs for compatibility with existing UI components
 export function useAllVaultPositions() {
-  const { address } = useAccount()
-
-  const exclude = ['RWAVault', 'ObolusOracle']
-  const contracts = Object.entries(CONTRACT_ADDRESSES)
-    .filter(([key]) => !exclude.includes(key))
-    .map(([symbol, tokenAddress]) => ({
-      address: CONTRACT_ADDRESSES.RWAVault as `0x${string}`,
-      abi: RWAVaultABI,
-      functionName: 'getPosition' as const,
-      args: [address as `0x${string}`, tokenAddress as `0x${string}`],
-    }))
-
-  const results = useReadContracts({
-    contracts,
-    query: { enabled: !!address },
-    // refetchInterval: 10_000,
-  })
-
-  const symbols = Object.keys(CONTRACT_ADDRESSES)
-    .filter(key => !exclude.includes(key))
-
-  const positions: Record<string, { raw: bigint, formatted: string, hasPosition: boolean }> = {}
-  results.data?.forEach((result, i) => {
-    const symbol = symbols[i]
-    const raw = (result.result as bigint) || BigInt(0)
-    positions[symbol] = {
-      raw,
-      formatted: formatEther(raw),
-      hasPosition: raw > BigInt(0),
-    }
-  })
-
-  return { ...results, positions }
+  const { data } = useVaultPosition()
+  return { 
+    positions: { SOL: data || { formatted: '0', raw: 0, hasPosition: false } },
+    isLoading: false 
+  }
 }
+
+export function useTokenBalance(tokenAddress: string) {
+  return useSolanaBalance()
+}
+
+export function useOracleSValue() {
+  return { sValue: 1.0, paused: false, isLoading: false }
+}
+
+export function useVaultShares(vaultAddress?: string) {
+  return { data: BigInt(0), isLoading: false, refetch: () => {} }
+}
+
+export function useTokenAllowance(tokenAddress: string, spenderAddress: string) {
+  return { data: BigInt(1000000000000000000000n), isLoading: false, refetch: () => {} }
+}
+

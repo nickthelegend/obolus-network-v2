@@ -12,7 +12,12 @@
 
 import { useState, useCallback } from 'react';
 import { usePrivy, useWallets } from '@privy-io/react-auth';
-import { useSignTypedData } from 'wagmi';
+// import { useSignTypedData } from 'wagmi'; // REMOVED
+
+// --- STUBS ---
+const useSignTypedData = () => ({ signTypedDataAsync: async (args: any) => "solana_sig_stub" })
+// -------------
+
 import { OBOLUS_DOMAIN, EIP712_TYPES } from '@/lib/eip712';
 import { api } from '@/lib/api';
 

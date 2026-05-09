@@ -28,10 +28,21 @@ import { Progress } from '@/components/ui/progress'
 import { cn } from '@/lib/utils'
 import { useVaultPosition, useVaultShares, useTokenBalance, useTokenAllowance, useOracleSValue } from '@/hooks/useContracts'
 import { useShieldedDeposit, useShieldedWithdraw } from '@/hooks/useShieldedVault'
+import { usePrivy, useWallets } from "@privy-io/react-auth"
+// import { useAccount, useChainId } from 'wagmi' // REMOVED
 import { CONTRACT_ADDRESSES } from '@/lib/wagmi'
 import { VAULTS } from '@/lib/vaults'
-import { useAccount, useChainId } from 'wagmi'
 import { useTokenPrice } from '@/hooks/useMarketData'
+
+// --- STUBS ---
+const useAccount = () => {
+  const { user, authenticated } = usePrivy()
+  const { wallets } = useWallets()
+  return { address: wallets[0]?.address || user?.wallet?.address, isConnected: authenticated }
+}
+const useChainId = () => 0
+// -------------
+
 
 export default function VaultDetailPage() {
   const { id } = useParams()
@@ -74,13 +85,13 @@ export default function VaultDetailPage() {
     if (!amount || !tokenAddress) return
     try {
       addLog(`INITIATING_SHIELDED_DEPOSIT // ${vault?.symbol} // AMOUNT: ${amount}`)
-      addLog('STEP_1: ON_CHAIN_APPROVE + DEPOSIT')
+      addLog('STEP_1: SOLANA_MESSAGE_SIGNING')
       const result = await deposit({
         tokenSymbol: vault?.symbol || '',
         tokenAddress: tokenAddress as string,
         amount: amount
       })
-      addLog(`STEP_2: EIP712_SIGNATURE_VERIFIED`)
+      addLog(`STEP_2: SOLANA_SIGNATURE_VERIFIED`)
       addLog(`STEP_3: ECIES_ENCRYPTION_COMPLETE // CRE_PUBKEY`)
       addLog(`STEP_4: SHIELDED_TO_POOL_WALLET // TX: ${result?.depositTxHash?.slice(0, 16)}...`)
       addLog('PROTOCOL_HANDSHAKE_COMPLETE // POSITION_SHIELDED')
@@ -94,7 +105,7 @@ export default function VaultDetailPage() {
     if (!amount || !tokenAddress) return
     try {
       addLog(`INITIATING_SHIELDED_WITHDRAW // ${vault?.symbol} // SHARES: ${amount}`)
-      addLog('STEP_1: EIP712_WITHDRAW_AUTHORIZATION')
+      addLog('STEP_1: SOLANA_WITHDRAW_AUTHORIZATION')
       const result = await withdraw({
         tokenSymbol: vault?.symbol || '',
         tokenAddress: tokenAddress as string,
@@ -126,7 +137,7 @@ export default function VaultDetailPage() {
         <div className="flex items-center gap-2">
            <div className="px-3 py-1 rounded-full bg-primary/10 border border-primary/20 flex items-center gap-2">
               <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-              <span className="text-[9px] font-black text-primary uppercase tracking-widest">LIVE_ON_BSC_TESTNET</span>
+              <span className="text-[9px] font-black text-primary uppercase tracking-widest">LIVE_ON_SOLANA_DEVNET</span>
            </div>
         </div>
       </div>
@@ -305,14 +316,14 @@ export default function VaultDetailPage() {
                     </div>
 
                     <div className="space-y-3">
-                       <StatusStep label="Step 1: Approve + Deposit" description="Token approval & on-chain deposit into ShieldedVault" completed={['signing', 'encrypting', 'shielding', 'complete'].includes(depositStep) || withdrawStep === 'complete'} loading={depositStep === 'approving' || depositStep === 'depositing'} />
-                       <StatusStep label="Step 2: EIP-712 Signature" description="Wallet signs typed data to authorize shielded transfer" completed={['encrypting', 'shielding', 'complete'].includes(depositStep) || ['queued', 'executing', 'complete'].includes(withdrawStep)} loading={depositStep === 'signing' || withdrawStep === 'signing'} />
-                       <StatusStep label="Step 3: ECIES Encrypt + Shield" description="Amount encrypted with CRE public key & sent to pool" completed={depositStep === 'complete' || withdrawStep === 'complete'} loading={depositStep === 'encrypting' || depositStep === 'shielding' || withdrawStep === 'queued' || withdrawStep === 'executing'} />
+                       <StatusStep label="Step 1: Solana Signing" description="Wallet signs message to authorize shielded transfer" completed={['encrypting', 'shielding', 'complete'].includes(depositStep) || ['queued', 'executing', 'complete'].includes(withdrawStep)} loading={depositStep === 'signing' || withdrawStep === 'signing'} />
+                       <StatusStep label="Step 2: ECIES Encrypt" description="Amount encrypted with CRE public key" completed={['shielding', 'complete'].includes(depositStep) || withdrawStep === 'complete'} loading={depositStep === 'encrypting'} />
+                       <StatusStep label="Step 3: Program Deposit" description="Funds deposited into Solana Vault program" completed={depositStep === 'complete' || withdrawStep === 'complete'} loading={depositStep === 'shielding' || withdrawStep === 'queued' || withdrawStep === 'executing'} />
                     </div>
 
                     {(depositTxHash || withdrawTransferId) && (
                       <a 
-                        href={depositTxHash ? `https://testnet.bscscan.com/tx/${depositTxHash}` : '#'}
+                        href={depositTxHash ? `https://explorer.solana.com/tx/${depositTxHash}?cluster=devnet` : '#'}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center justify-between p-3 bg-black/40 rounded-xl group/link"

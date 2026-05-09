@@ -4,11 +4,11 @@ import { Shield } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState, useEffect } from "react"
-import { useAccount } from "wagmi"
+import { usePrivy } from "@privy-io/react-auth"
 
 export function AppFooter() {
     const pathname = usePathname()
-    const { isConnected } = useAccount()
+    const { authenticated: isConnected } = usePrivy()
     const [mounted, setMounted] = useState(false)
 
     useEffect(() => {

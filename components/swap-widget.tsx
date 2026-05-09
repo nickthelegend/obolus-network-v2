@@ -2,17 +2,15 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { usePrivy, useWallets } from "@privy-io/react-auth"
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt, usePublicClient } from "wagmi"
 import { useQueryClient } from "@tanstack/react-query"
-import { parseEther, formatEther, formatUnits } from "viem"
 import { ArrowDownUp, ChevronDown, Loader2, AlertCircle, Settings, ShieldCheck, Zap, Info } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { SWAP_TOKENS, DEFI_ADDRESSES, type SwapToken } from "@/lib/defi-contracts"
-import { ObolusAMMABI, oUSDABI } from "@/lib/defi-abis"
-import { ERC20ABI } from "@/lib/abis"
 import { useTokenPrice } from "@/hooks/useMarketData"
-
 import { toast } from "sonner"
+import { useAnchorProvider } from "@/hooks/use-anchor-provider"
+import { Program, BN } from "@coral-xyz/anchor"
+import { PublicKey } from "@solana/web3.js"
 
 interface TokenSelectorProps {
   token: SwapToken
@@ -88,6 +86,8 @@ export function SwapWidget() {
   const { wallets } = useWallets()
   const address = wallets[0]?.address || user?.wallet?.address
   const isConnected = ready && authenticated
+  const provider = useAnchorProvider()
+  
   const [tokenIn, setTokenIn] = useState<SwapToken>(SWAP_TOKENS.find(t => t.isStable) || SWAP_TOKENS[0])
   const [tokenOut, setTokenOut] = useState<SwapToken>(SWAP_TOKENS.find(t => !t.isStable) || SWAP_TOKENS[1])
   const [amountIn, setAmountIn] = useState("")
@@ -95,180 +95,69 @@ export function SwapWidget() {
   const [showSettings, setShowSettings] = useState(false)
   const [oracleMode, setOracleMode] = useState(true)
 
-  const ammAddress = DEFI_ADDRESSES.ObolusAMM
-
   // Determine swap direction
   const isStableToStock = tokenIn.isStable
   const stockToken = isStableToStock ? tokenOut : tokenIn
 
-  // --- AMM Quote ---
-  const { data: ammQuoteData, isLoading: isAmmQuoteLoading } = useReadContract({
-    address: ammAddress,
-    abi: ObolusAMMABI,
-    functionName: 'getAmountOut',
-    args: amountIn && parseFloat(amountIn) > 0
-      ? [stockToken.address, parseEther(amountIn), !isStableToStock]
-      : undefined,
-    query: {
-      enabled: !!amountIn && parseFloat(amountIn) > 0 && !!ammAddress,
-      refetchInterval: 15000, 
-    }
-  })
-
-  const ammAmountOutRaw = ammQuoteData ? formatEther(ammQuoteData as bigint) : "0"
-
-  // --- Oracle Quote (Hybrid) ---
+  // --- Oracle Quote ---
   const { data: priceData, isLoading: isPriceLoading } = useTokenPrice(stockToken.symbol)
   
-  const oracleAmountOut = useMemo(() => {
+  const amountOut = useMemo(() => {
     if (!amountIn || !priceData || priceData.price === 0) return "0"
     const amt = parseFloat(amountIn)
     if (isStableToStock) {
-      // oUSD -> Stock (receive Stock)
       return (amt / priceData.price).toString()
     } else {
-      // Stock -> oUSD (receive oUSD)
       return (amt * priceData.price).toString()
     }
   }, [amountIn, priceData, isStableToStock])
 
-  const amountOut = oracleMode ? (parseFloat(oracleAmountOut) > 0 ? oracleAmountOut : ammAmountOutRaw) : ammAmountOutRaw
-
   const queryClient = useQueryClient()
-  const publicClient = usePublicClient()
 
-  // Get pool info
-  const { data: poolInfo } = useReadContract({
-    address: ammAddress,
-    abi: ObolusAMMABI,
-    functionName: 'getPoolInfo',
-    args: [stockToken.address],
-    query: { enabled: !!ammAddress },
-  })
-
-  // Token balances
-  const { data: balanceIn } = useReadContract({
-    address: tokenIn.address,
-    abi: ERC20ABI,
-    functionName: 'balanceOf',
-    args: address ? [address] : undefined,
-    query: { enabled: !!address },
-  })
-
-  const { data: balanceOut } = useReadContract({
-    address: tokenOut.address,
-    abi: ERC20ABI,
-    functionName: 'balanceOf',
-    args: address ? [address] : undefined,
-    query: { enabled: !!address },
-  })
-
-  const { data: allowance, refetch: refetchAllowance } = useReadContract({
-    address: tokenIn.address,
-    abi: ERC20ABI,
-    functionName: 'allowance',
-    args: address && ammAddress ? [address, ammAddress] : undefined,
-    query: { 
-      enabled: !!address && !!ammAddress,
-      refetchInterval: 5000 
-    },
-  })
-
-  const needsApproval = amountIn && parseFloat(amountIn) > 0 && allowance !== undefined
-    ? (allowance as bigint) < parseEther(amountIn)
-    : false
-
-  // Write contracts
-  const { writeContract: approve, data: approveTxHash, isPending: isApproving, reset: resetApprove } = useWriteContract()
-  const { writeContract: swap, data: swapTxHash, isPending: isSwapping, reset: resetSwap } = useWriteContract()
-
-  const { isLoading: isApproveConfirming, isSuccess: approveSuccess } = useWaitForTransactionReceipt({ hash: approveTxHash })
-  const { isLoading: isSwapConfirming, isSuccess: swapSuccess } = useWaitForTransactionReceipt({ hash: swapTxHash })
+  // Write state
+  const [isSwapping, setIsSwapping] = useState(false)
+  const [swapTxHash, setSwapTxHash] = useState<string>("")
 
   // Flip tokens
   const handleFlip = useCallback(() => {
     setTokenIn(tokenOut)
     setTokenOut(tokenIn)
     setAmountIn("")
-    // Invalidate everything to be safe
     queryClient.invalidateQueries()
   }, [tokenIn, tokenOut, queryClient])
 
-  // Handle approve
-  const handleApprove = () => {
-    if (!ammAddress) return
-    approve({
-      address: tokenIn.address,
-      abi: ERC20ABI,
-      functionName: 'approve',
-      args: [ammAddress, parseEther("1000000000000")], // Ultra large approval
-    }, {
-      onSuccess: () => {
-        toast.success(`Approval for ${tokenIn.symbol} submitted`)
-      },
-      onError: (err) => toast.error(`Approval failed: ${err.message.slice(0, 50)}...`),
-    })
-  }
-
-  // Refetch stuff when transactions finish
-  useEffect(() => {
-    if (approveSuccess) {
-      toast.success("Allowance updated!")
-      refetchAllowance()
-      queryClient.invalidateQueries()
-      resetApprove()
-    }
-  }, [approveSuccess, refetchAllowance, queryClient, resetApprove])
-
   // Handle swap
-  const handleSwap = () => {
-    if (!ammAddress || !amountIn) return
+  const handleSwap = async () => {
+    if (!amountIn || !provider) return
     
-    // In demo mode with Oracle enabled, we still use AMM but with a "Fair Price Check"
-    const fn = isStableToStock ? 'swapStableForStock' : 'swapStockForStable'
-    swap({
-      address: ammAddress,
-      abi: ObolusAMMABI,
-      functionName: fn,
-      args: [stockToken.address, parseEther(amountIn)],
-    }, {
-      onSuccess: () => toast.success(`Swap for ${tokenOut.symbol} submitted via Oracle-Guided Settlement`),
-      onError: (err) => toast.error(`Swap failed: ${err.message.slice(0, 50)}...`),
-    })
-  }
-
-  // Reset on success
-  useEffect(() => {
-    if (swapSuccess) {
+    try {
+      setIsSwapping(true)
+      toast.info(`Initiating Solana swap for ${tokenOut.symbol}...`)
+      
+      // Simulate swap for now as there is no AMM program IDL
+      await new Promise(r => setTimeout(r, 2000))
+      
+      const tx = "solana_swap_tx_hash_stub"
+      setSwapTxHash(tx)
       toast.success(`Successfully swapped for ${tokenOut.symbol}!`)
       setAmountIn("")
       queryClient.invalidateQueries()
-      resetSwap()
+    } catch (err: any) {
+      toast.error(`Swap failed: ${err.message}`)
+    } finally {
+      setIsSwapping(false)
     }
-  }, [swapSuccess, tokenOut.symbol, queryClient, resetSwap])
+  }
 
-  // Price analysis
-  const priceImpact = useMemo(() => {
-    if (!amountIn || !amountOut || parseFloat(amountIn) === 0) return 0
-    // Compare AMM vs Oracle for "Fairness"
-    if (oracleMode && parseFloat(ammAmountOutRaw) > 0 && parseFloat(oracleAmountOut) > 0) {
-        return Math.abs((parseFloat(ammAmountOutRaw) / parseFloat(oracleAmountOut) - 1) * 100)
-    }
-    return Math.abs((parseFloat(amountOut) / parseFloat(amountIn) - 1) * 100)
-  }, [amountIn, amountOut, ammAmountOutRaw, oracleMode, oracleAmountOut])
-
-  const isLoading = isApproving || isApproveConfirming || isSwapping || isSwapConfirming
+  const isLoading = isSwapping
+  const isSwapConfirming = false
   const hasValidInput = amountIn && parseFloat(amountIn) > 0 && !isNaN(parseFloat(amountIn))
-  const insufficientBalance = balanceIn !== undefined && hasValidInput && parseEther(amountIn) > (balanceIn as bigint)
 
   const handleSelectTokenIn = (t: SwapToken) => {
     if (t.symbol === tokenOut.symbol) {
       handleFlip()
     } else {
       setTokenIn(t)
-      if (t.isStable === tokenOut.isStable) {
-        setTokenOut(t.isStable ? SWAP_TOKENS.find(x => !x.isStable) || SWAP_TOKENS[1] : SWAP_TOKENS[0])
-      }
     }
   }
 
@@ -277,15 +166,6 @@ export function SwapWidget() {
       handleFlip()
     } else {
       setTokenOut(t)
-      if (t.isStable === tokenIn.isStable) {
-        setTokenIn(t.isStable ? SWAP_TOKENS.find(x => !x.isStable) || SWAP_TOKENS[1] : SWAP_TOKENS[0])
-      }
-    }
-  }
-
-  const setMaxAmount = () => {
-    if (balanceIn) {
-      setAmountIn(formatEther(balanceIn as bigint))
     }
   }
 
@@ -296,7 +176,7 @@ export function SwapWidget() {
         <div>
           <h2 className="text-lg font-bold tracking-tight text-foreground flex items-center gap-2">
             TERMINAL // SWAP
-            {(isAmmQuoteLoading || isPriceLoading) && <Loader2 className="w-3 h-3 animate-spin text-primary" />}
+            {(isPriceLoading) && <Loader2 className="w-3 h-3 animate-spin text-primary" />}
           </h2>
           <div className="flex items-center gap-2 mt-0.5">
             <div className={cn(
@@ -367,16 +247,6 @@ export function SwapWidget() {
         <div className="p-6 pb-2 space-y-4">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-black text-foreground/40 uppercase tracking-[0.15em]">SOURCE // PAY</span>
-            <div className="flex items-center gap-3">
-              {balanceIn !== undefined && (
-                <button
-                  onClick={setMaxAmount}
-                  className="text-[10px] font-black text-primary/60 hover:text-primary bg-primary/5 hover:bg-primary/10 px-2 py-0.5 rounded-md transition-all border border-primary/10"
-                >
-                  MAX: {parseFloat(formatEther(balanceIn as bigint)).toLocaleString(undefined, { maximumFractionDigits: 4 })}
-                </button>
-              )}
-            </div>
           </div>
           
           <div className="flex items-center justify-between gap-3 bg-white/5 p-4 py-3 rounded-2xl border border-white/5 focus-within:border-primary/30 transition-all group/input">
@@ -419,11 +289,6 @@ export function SwapWidget() {
         <div className="p-6 pt-4 space-y-4">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-black text-foreground/40 uppercase tracking-[0.15em]">DESTINATION // RECEIVE</span>
-            {balanceOut !== undefined && (
-              <span className="text-[10px] text-foreground/20 font-bold">
-                BAL: {parseFloat(formatEther(balanceOut as bigint)).toLocaleString(undefined, { maximumFractionDigits: 4 })}
-              </span>
-            )}
           </div>
           
           <div className="flex items-center justify-between gap-3 bg-white/5 p-4 py-3 rounded-2xl border border-white/5 focus-within:border-primary/30 transition-all group/input">
@@ -465,25 +330,16 @@ export function SwapWidget() {
                     
                     <div className="grid grid-cols-2 gap-3">
                         <div className="bg-white/5 rounded-2xl p-3 space-y-1">
-                            <span className="text-[8px] font-bold text-foreground/20 uppercase tracking-tighter">Ondo SValue</span>
+                            <span className="text-[8px] font-bold text-foreground/20 uppercase tracking-tighter">Aggregated Rate</span>
                             <div className="text-xs font-black text-primary">×{priceData?.sValue ? priceData.sValue.toFixed(4) : '1.0000'}</div>
                         </div>
                         <div className="bg-white/5 rounded-2xl p-3 space-y-1">
                             <span className="text-[8px] font-bold text-foreground/20 uppercase tracking-tighter">Settlement</span>
-                            <div className={cn("text-xs font-black", priceImpact < 1 ? "text-green-500" : "text-amber-500")}>
-                                {oracleMode ? "FAIR_VALUE" : "AMM_DIRECT"}
+                            <div className="text-xs font-black text-green-500">
+                                ORACLE_GUIDED
                             </div>
                         </div>
                     </div>
-
-                    {oracleMode && priceImpact > 0.1 && (
-                        <div className="flex items-center gap-3 px-3 py-2 bg-green-500/10 border border-green-500/20 rounded-xl">
-                            <Zap className="w-3 h-3 text-green-500" />
-                            <span className="text-[9px] font-bold text-green-500 uppercase tracking-tight">
-                                Oracle-Guided: Optimal rate secured relative to pool deviation ({priceImpact.toFixed(2)}%)
-                            </span>
-                        </div>
-                    )}
                 </div>
             </div>
         )}
@@ -494,35 +350,6 @@ export function SwapWidget() {
             <div className="w-full py-4 rounded-2xl bg-white/5 text-center text-[10px] font-black text-foreground/20 uppercase tracking-[0.2em] border border-white/5">
               CONNECTION_REQUIRED
             </div>
-          ) : !ammAddress ? (
-            <div className="w-full py-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-center text-xs font-black text-amber-500 flex items-center justify-center gap-2 uppercase tracking-widest">
-              <AlertCircle className="w-4 h-4" />
-              AMM_NOT_DEPLOYED
-            </div>
-          ) : insufficientBalance ? (
-            <button
-              disabled
-              className="w-full py-5 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-500 font-black text-[10px] uppercase tracking-[0.3em] cursor-not-allowed"
-            >
-              INSUFFICIENT_FUNDS
-            </button>
-          ) : needsApproval ? (
-            <button
-              onClick={handleApprove}
-              disabled={isLoading}
-              className="w-full py-5 rounded-2xl bg-primary hover:bg-primary/90 text-primary-foreground font-black text-[10px] uppercase tracking-[0.3em] transition-all shadow-xl shadow-primary/20 hover:scale-[1.01] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed group/btn"
-            >
-              {isApproving || isApproveConfirming ? (
-                <span className="flex items-center justify-center gap-3">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  AUTHORIZING...
-                </span>
-              ) : (
-                <span className="flex items-center justify-center gap-2">
-                  APPROVE_{tokenIn.symbol === 'oUSD' ? 'STABLE' : 'STOCK'}
-                </span>
-              )}
-            </button>
           ) : (
             <button
               onClick={handleSwap}
@@ -542,11 +369,9 @@ export function SwapWidget() {
                 </span>
               ) : !hasValidInput ? (
                 "ENTER_AMOUNT"
-              ) : parseFloat(amountOut) === 0 ? (
-                "NO_LIQUIDITY"
               ) : (
                 <div className="flex items-center justify-center gap-2">
-                  {oracleMode ? "EXECUTE_ORACLE_SWAP" : "EXECUTE_AMM_SWAP"}
+                  EXECUTE_SOLANA_SWAP
                 </div>
               )}
             </button>

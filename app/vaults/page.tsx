@@ -6,11 +6,19 @@ import { Search, ArrowUpDown, ChevronDown, Activity, TrendingUp, BarChart3, Sear
 import { Button } from "@/components/ui/button"
 import { VAULTS, Vault } from "@/lib/vaults"
 import { cn } from "@/lib/utils"
-import { useAccount, useReadContract, useChainId } from "wagmi"
-import { formatUnits } from "viem"
+import { usePrivy, useWallets } from "@privy-io/react-auth"
+// import { useAccount, useReadContract, useChainId } from "wagmi" // REMOVED
+// import { formatUnits } from "viem" // REMOVED
 import { useAllPrices } from "@/hooks/useMarketData"
 import { usePlatformTVL, useVaultPositions } from "@/hooks/useVaults"
 import Sparkline from "@/components/Sparkline"
+
+// --- STUBS ---
+const useChainId = () => 0
+const useReadContract = (args: any) => ({ data: null, isLoading: false })
+const formatUnits = (v: any, u: number) => "0.00"
+// -------------
+
 
 const ERC20_ABI = [
   {
@@ -154,7 +162,9 @@ export default function VaultsPage() {
 }
 
 function VaultRow({ vault, isLocalhost, prices }: { vault: Vault, isLocalhost: boolean, prices: any }) {
-  const { address } = useAccount()
+  const { user } = usePrivy()
+  const { wallets } = useWallets()
+  const address = wallets[0]?.address || user?.wallet?.address
   const { data: balanceValue } = useReadContract({
     address: vault.tokenAddress as `0x${string}`,
     abi: ERC20_ABI,

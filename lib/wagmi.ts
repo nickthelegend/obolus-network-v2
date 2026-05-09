@@ -1,54 +1,29 @@
-import { createConfig, http } from 'wagmi'
-import { bsc, bscTestnet, localhost } from 'wagmi/chains'
-import { cookieStorage, createStorage } from 'wagmi'
+/**
+ * WAGMI COMPATIBILITY LAYER (SOLANA MIGRATION)
+ * This file serves as a bridge to prevent build errors while we transition 
+ * from EVM/Wagmi to Solana/Anchor. 
+ */
 
-// Wagmi config — BSC Testnet + Mainnet
-export const config = createConfig({
-  chains: [bscTestnet, bsc, localhost],
-  transports: {
-    [bscTestnet.id]: http(),
-    [bsc.id]: http(),
-    [localhost.id]: http(),
-  },
-  ssr: true,
-  storage: createStorage({
-    storage: cookieStorage
-  }),
-})
+export const CONTRACT_ADDRESSES = {
+  ObolusOracle: "0xb0ab8015Ce10593eE9a26E78B0BeDBc21330ba23",
+  RWAVault: "0x772C9513fFcffaed224048b3e22AcF9E58854b73",
+  TSLAx: "0x2B05DC386bbe679fD22eDE500b52B858B86B3778",
+  AAPLx: "0x11ba0F051f6859a8BBb98cCa14B40F280FcB96F0",
+  NVDAon: "0x235a45B9d8A51c1D4aCFd2d4EaA9bA2B263E0c78",
+  GOOGLx: "0xa9308C9938C9E09AeD4211E777696feB1Ff0c77B",
+  SPYx: "0x39E2D41eB56188259137a8931a0Ce04fFEF6413f",
+  CRCLX: "0x6260371533F981A05d097f33283B1351a542F2Ff",
+  MUon: "0x7e8ED851A79e36fdAF3AF981dDd0C1aB05E72e3A",
+  QQQon: "0xDe03fE8EBeD5CFbc7B514EAbDbB79c449c986fd1",
+  AMZNon: "0x6E7f4106Fe51CB751a82BEfAD45d3b386301cCde",
+  ObolusAMM: "0x41a6493078fCF8D554DF94769F9B3b201756cb58"
+} as const;
 
-// Obolus V1 Contracts - BSC Testnet Core
-export const OBOLUS_ADDRESSES = {
-  bscTestnet: {
-    RWAVault: "0x772C9513fFcffaed224048b3e22AcF9E58854b73" as const,
-    ObolusOracle: "0xb0ab8015Ce10593eE9a26E78B0BeDBc21330ba23" as const,
-    oUSD: "0x73b44a1C5e2c981594BA5dbb9d84edc905202f82" as const,
-    ObolusAMM: "0x01E604F1D21Fc690A6fD9c2f7a27A5dA572cD8e4" as const,
-    TSLAx: "0x2B05DC386bbe679fD22eDE500b52B858B86B3778" as const,
-    AAPLx: "0x11ba0F051f6859a8BBb98cCa14B40F280FcB96F0" as const,
-    NVDAon: "0x235a45B9d8A51c1D4aCFd2d4EaA9bA2B263E0c78" as const,
-    GOOGLx: "0xa9308C9938C9E09AeD4211E777696feB1Ff0c77B" as const,
-    SPYx: "0x39E2D41eB56188259137a8931a0Ce04fFEF6413f" as const,
-    CRCLX: "0x6260371533F981A05d097f33283B1351a542F2Ff" as const,
-    MUon: "0x7e8ED851A79e36fdAF3AF981dDd0C1aB05E72e3A" as const,
-    QQQon: "0xDe03fE8EBeD5CFbc7B514EAbDbB79c449c986fd1" as const,
-    AMZNon: "0x6E7f4106Fe51CB751a82BEfAD45d3b386301cCde" as const,
-  },
-  localhost: {
-    RWAVault: "0x3Aa5ebB10DC797CAC828524e59A333d0A371443c" as const,
-    ObolusOracle: "0x68B1D87F95878fE05B998F19b66F4baba5De1aed" as const,
-  }
-}
-
-export const CONTRACT_ADDRESSES = OBOLUS_ADDRESSES.bscTestnet
-
-// Typed Contract Configs
 export const OBOLUS_CONTRACTS = {
-  RWAVault: {
-    address: CONTRACT_ADDRESSES.RWAVault,
-    abi: [] as any, // Will be imported from lib/abis in hooks
-  },
-  ObolusOracle: {
-    address: CONTRACT_ADDRESSES.ObolusOracle,
-    abi: [] as any,
-  }
-} as const
+  RWAVault: { address: CONTRACT_ADDRESSES.RWAVault as `0x${string}` },
+  ObolusOracle: { address: CONTRACT_ADDRESSES.ObolusOracle as `0x${string}` },
+  ObolusAMM: { address: CONTRACT_ADDRESSES.ObolusAMM as `0x${string}` }
+};
+
+// Stub for wagmi config if needed
+export const config = {} as any;

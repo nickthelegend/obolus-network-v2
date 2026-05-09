@@ -27,14 +27,18 @@ import { useAllVaultPositions } from '@/hooks/useContracts'
 import { useAllPrices } from '@/hooks/useMarketData'
 import { VAULTS } from '@/lib/vaults'
 import Link from 'next/link'
-import { useAccount } from 'wagmi'
+import { usePrivy, useWallets } from "@privy-io/react-auth"
+// import { useAccount } from 'wagmi' // REMOVED
 import { useObolusAuth, useNAVHistory } from '@/hooks/useVaults'
 import { usePrivacyReveal } from '@/hooks/usePrivacyReveal'
 import Sparkline from '@/components/Sparkline'
 
 export default function PortfolioPage() {
-  const { address } = useAccount()
+  const { user } = usePrivy()
+  const { wallets } = useWallets()
+  const address = wallets[0]?.address || user?.wallet?.address
   const { positions } = useAllVaultPositions()
+
   const { data: navData, isLoading: navLoading } = { data: null, isLoading: false } // placeholder for now
 
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list')
@@ -65,14 +69,15 @@ export default function PortfolioPage() {
     try {
       setIsRevealing(true)
       addLog("PRIVACY_REVEAL_INITIATED", "info", "STARTING")
-      addLog("EIP712_SIGNING // TYPE: Privacy Reveal", "info", "SIGNING")
+      addLog("SOLANA_SIGNING // TYPE: Privacy Reveal", "info", "SIGNING")
       
       await reveal()
       
-      addLog("EIP712_SIGNATURE_VERIFIED // SERVER_AUTHENTICATED", "success", "VERIFIED")
+      addLog("SOLANA_SIGNATURE_VERIFIED // SERVER_AUTHENTICATED", "success", "VERIFIED")
       addLog("ECIES_POSITIONS_FETCHED // BLIND_STORAGE", "info", "PROCESSING")
-      addLog("AES_KEY_DERIVED_FROM_SIGNATURE // PBKDF2", "success", "DERIVED")
+      addLog("PDA_KEY_DERIVED_FROM_SIGNATURE // PBKDF2", "success", "DERIVED")
       addLog("CLIENT_SIDE_DECRYPTION_COMPLETE // POSITIONS_VISIBLE", "success", "UNLOCKED")
+
       
       setShowValues(true)
     } catch (err) {

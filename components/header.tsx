@@ -4,7 +4,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
-import { useAccount } from "wagmi"
+
 import { SidebarDrawer } from "./sidebar-drawer"
 import { cn } from "@/lib/utils"
 import { ConnectWalletButton } from "@/components/wallet/connect-wallet-button"

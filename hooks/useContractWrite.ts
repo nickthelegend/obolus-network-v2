@@ -1,129 +1,86 @@
-import { useWriteContract, usePublicClient } from 'wagmi'
-import { parseEther } from 'viem'
-import { CONTRACT_ADDRESSES } from '@/lib/wagmi'
-import { RWAVaultABI, ERC20ABI, MockERC20ABI } from '@/lib/abis'
 import { useState } from 'react'
-import { api } from '@/lib/api'
-import { useAccount } from 'wagmi'
+import { usePrivy, useWallets } from "@privy-io/react-auth"
 import { useQueryClient } from '@tanstack/react-query'
+import { api } from '@/lib/api'
 import { encryptAmount } from '@/lib/encryption'
+import { useAnchorProvider } from './use-anchor-provider'
+import { Program, BN } from '@coral-xyz/anchor'
+import { PROGRAM_ID, IDL } from '@/lib/solana/program'
+import { PublicKey, SystemProgram } from '@solana/web3.js'
+import { CONTRACT_ADDRESSES } from '@/lib/wagmi' // Still needed for faucet list if not migrated
+
+// --- STUBS ---
+// (Removed EVM stubs)
+// -------------
 
 export type TxStep =
   | 'idle'
-  | 'approving'
-  | 'approve_confirmed'
+  | 'preparing'
+  | 'signing'
   | 'depositing'
-  | 'deposit_confirmed'
+  | 'withdrawing'
+  | 'confirmed'
   | 'recording'
   | 'complete'
   | 'error'
 
 export function useDepositFlow() {
-  const { address } = useAccount()
+  const { user } = usePrivy()
+  const { wallets } = useWallets()
+  const address = wallets[0]?.address || user?.wallet?.address
   const queryClient = useQueryClient()
-  const { writeContractAsync } = useWriteContract()
-  const publicClient = usePublicClient()
+  const provider = useAnchorProvider()
+  
   const [step, setStep] = useState<TxStep>('idle')
   const [txHash, setTxHash] = useState<string>('')
   const [error, setError] = useState<string>('')
-  const [approveTxHash, setApproveTxHash] = useState<string>('')
 
   const deposit = async ({
     tokenSymbol,
-    tokenAddress,
     amount,
   }: {
     tokenSymbol: string
-    tokenAddress: string
     amount: string
   }) => {
+    if (!provider || !address) throw new Error("SOLANA_PROVIDER_NOT_READY")
     setError('')
-    const parsedAmount = parseEther(amount)
-
+    
     try {
-      // Step 1: Approve
-      setStep('approving')
-      console.log('[OBOLUS:DEPOSIT_FLOW] Step 1: Approving token spend', {
-        token: tokenAddress,
-        spender: CONTRACT_ADDRESSES.RWAVault,
-        amount,
-      })
-      const approveTx = await writeContractAsync({
-        address: tokenAddress as `0x${string}`,
-        abi: MockERC20ABI,
-        functionName: 'approve',
-        args: [CONTRACT_ADDRESSES.RWAVault as `0x${string}`, parsedAmount],
-      })
-      setApproveTxHash(approveTx)
-      console.log('[OBOLUS:DEPOSIT_FLOW] Approve tx submitted:', approveTx)
+      setStep('preparing')
+      const program = new Program(IDL as any, provider)
+      const lamports = new BN(parseFloat(amount) * 1e9) // SOL to lamports
 
-      await publicClient?.waitForTransactionReceipt({ hash: approveTx })
-      setStep('approve_confirmed')
-      console.log('[OBOLUS:DEPOSIT_FLOW] Approve confirmed')
-
-      // Step 2: Deposit
       setStep('depositing')
-      console.log('[OBOLUS:DEPOSIT_FLOW] Step 2: Depositing to vault', {
-        vault: CONTRACT_ADDRESSES.RWAVault,
-        token: tokenAddress,
-        amount,
-      })
-      const depositTx = await writeContractAsync({
-        address: CONTRACT_ADDRESSES.RWAVault as `0x${string}`,
-        abi: RWAVaultABI,
-        functionName: 'deposit',
-        args: [tokenAddress as `0x${string}`, parsedAmount, address as `0x${string}`],
-      })
-      setTxHash(depositTx)
-      console.log('[OBOLUS:DEPOSIT_FLOW] Deposit tx submitted:', depositTx)
+      console.log('[OBOLUS:SOLANA] Depositing', amount, 'SOL to vault PDA')
       
-      await publicClient?.waitForTransactionReceipt({ hash: depositTx })
-      setStep('deposit_confirmed')
+      const tx = await program.methods
+        .deposit(lamports)
+        .rpc()
 
-      // Encrypt the amount for CRE before recording
-      let encryptedAmt = 'encrypted';
-      try {
-        encryptedAmt = await encryptAmount(amount);
-      } catch {
-        // Fallback if encryption fails (e.g. CRE key not available)
-      }
+      setTxHash(tx)
+      console.log('[OBOLUS:SOLANA] Deposit tx confirmed:', tx)
+
+      setStep('recording')
+      // Encrypt for CRE (stubbed for now)
+      let encryptedAmt = await encryptAmount(amount)
 
       await api.post('/transactions/record', {
         userAddress: address,
         type: 'deposit',
         vaultId: tokenSymbol.toLowerCase(),
-        tokenAddress,
         encryptedAmount: encryptedAmt,
-        txHash: depositTx,
-        chainId: 97,
+        txHash: tx,
+        chainId: 0, // Solana
         status: 'executed',
       });
-      await api.post('/vault/position/upsert', {
-        userAddress: address,
-        vaultId: tokenSymbol.toLowerCase(),
-        tokenAddress,
-        encryptedBalance: encryptedAmt,
-        txHashDeposit: depositTx,
-        chainId: 97,
-        status: 'active',
-      });
-      console.log('[OBOLUS:DEPOSIT_FLOW] Server record complete')
 
       setStep('complete')
-      queryClient.invalidateQueries({ queryKey: ['readContracts'] }) // Invalidate batch reads
-      queryClient.invalidateQueries({ queryKey: ['readContract'] })
-
-      return { approveTxHash: approveTx, depositTxHash: depositTx }
+      queryClient.invalidateQueries({ queryKey: ['solana-balance'] })
+      return { depositTxHash: tx }
 
     } catch (e: any) {
-      console.error('[OBOLUS:DEPOSIT_FLOW:ERROR]', {
-        step,
-        error: e.message,
-        code: e.code,
-        tokenSymbol,
-        amount,
-      })
-      setError(e.message || 'Transaction failed')
+      console.error('[OBOLUS:SOLANA:ERROR]', e)
+      setError(e.message || 'Solana transaction failed')
       setStep('error')
       throw e
     }
@@ -133,80 +90,59 @@ export function useDepositFlow() {
     setStep('idle')
     setTxHash('')
     setError('')
-    setApproveTxHash('')
   }
 
-  return { deposit, step, txHash, approveTxHash, error, reset }
+  return { deposit, step, txHash, error, reset }
 }
 
 export function useWithdrawFlow() {
-  const { address } = useAccount()
+  const { user } = usePrivy()
+  const { wallets } = useWallets()
+  const address = wallets[0]?.address || user?.wallet?.address
   const queryClient = useQueryClient()
-  const { writeContractAsync } = useWriteContract()
-  const publicClient = usePublicClient()
+  const provider = useAnchorProvider()
+  
   const [step, setStep] = useState<TxStep>('idle')
   const [txHash, setTxHash] = useState<string>('')
   const [error, setError] = useState<string>('')
 
   const withdraw = async ({
     tokenSymbol,
-    tokenAddress,
-    shares,
   }: {
     tokenSymbol: string
-    tokenAddress: string
-    shares: string
   }) => {
+    if (!provider || !address) throw new Error("SOLANA_PROVIDER_NOT_READY")
     setError('')
 
     try {
-      setStep('depositing') // reuse step name for simplicity
-      console.log('[OBOLUS:WITHDRAW_FLOW] Withdrawing from vault', {
-        token: tokenAddress,
-        shares,
-      })
-      const withdrawTx = await writeContractAsync({
-        address: CONTRACT_ADDRESSES.RWAVault as `0x${string}`,
-        abi: RWAVaultABI,
-        functionName: 'withdraw',
-        args: [tokenAddress as `0x${string}`, parseEther(shares)],
-      })
-      setTxHash(withdrawTx)
-      console.log('[OBOLUS:WITHDRAW_FLOW] Withdraw tx:', withdrawTx)
+      setStep('withdrawing')
+      const program = new Program(IDL as any, provider)
 
-      await publicClient?.waitForTransactionReceipt({ hash: withdrawTx })
+      console.log('[OBOLUS:SOLANA] Withdrawing all from vault PDA')
+      const tx = await program.methods
+        .withdraw()
+        .rpc()
 
-      let encryptedWithdrawAmt = 'encrypted';
-      try {
-        encryptedWithdrawAmt = await encryptAmount(shares);
-      } catch {
-        // Fallback
-      }
+      setTxHash(tx)
+      console.log('[OBOLUS:SOLANA] Withdraw tx confirmed:', tx)
 
+      setStep('recording')
       await api.post('/transactions/record', {
         userAddress: address,
         type: 'withdraw',
         vaultId: tokenSymbol.toLowerCase(),
-        tokenAddress,
-        encryptedAmount: encryptedWithdrawAmt,
-        txHash: withdrawTx,
-        chainId: 97,
+        txHash: tx,
+        chainId: 0,
         status: 'executed',
-      });
-      await api.post('/vault/position/close', {
-        userAddress: address,
-        vaultId: tokenSymbol.toLowerCase(),
       });
 
       setStep('complete')
-      queryClient.invalidateQueries({ queryKey: ['readContracts'] })
-      queryClient.invalidateQueries({ queryKey: ['readContract'] })
-
-      return withdrawTx
+      queryClient.invalidateQueries({ queryKey: ['solana-balance'] })
+      return tx
 
     } catch (e: any) {
-      console.error('[OBOLUS:WITHDRAW_FLOW:ERROR]', { error: e.message, tokenSymbol })
-      setError(e.message || 'Withdraw failed')
+      console.error('[OBOLUS:SOLANA:ERROR]', e)
+      setError(e.message || 'Solana withdraw failed')
       setStep('error')
       throw e
     }
@@ -221,37 +157,43 @@ export function useWithdrawFlow() {
   return { withdraw, step, txHash, error, reset }
 }
 
+
 export function useMintFaucet() {
-  const { address } = useAccount()
+  const { user } = usePrivy()
+  const { wallets } = useWallets()
+  const address = wallets[0]?.address || user?.wallet?.address
   const queryClient = useQueryClient()
-  const { writeContractAsync } = useWriteContract()
+  const provider = useAnchorProvider()
+  
   const [mintingSymbol, setMintingSymbol] = useState<string>('')
   const [lastTxHash, setLastTxHash] = useState<string>('')
   const [error, setError] = useState<string>('')
 
-  const mint = async (tokenSymbol: string, tokenAddress: string) => {
+  const mint = async (tokenSymbol: string) => {
+    if (!provider || !address) throw new Error("SOLANA_PROVIDER_NOT_READY")
     setError('')
     setMintingSymbol(tokenSymbol)
-    const FAUCET_AMOUNT = parseEther('1000')
 
     try {
-      console.log('[OBOLUS:FAUCET] Minting 1000', tokenSymbol, 'to', address)
-      const mintTx = await writeContractAsync({
-        address: tokenAddress as `0x${string}`,
-        abi: MockERC20ABI,
-        functionName: 'mint',
-        args: [address as `0x${string}`, FAUCET_AMOUNT],
+      console.log('[OBOLUS:FAUCET] Requesting SOL airdrop to', address)
+      const tx = await provider.connection.requestAirdrop(
+        new PublicKey(address),
+        1 * 1e9 // 1 SOL
+      )
+      
+      const latestBlockhash = await provider.connection.getLatestBlockhash()
+      await provider.connection.confirmTransaction({
+        signature: tx,
+        ...latestBlockhash
       })
-      setLastTxHash(mintTx)
-      console.log('[OBOLUS:FAUCET] Mint tx submitted:', mintTx)
-      console.log('[OBOLUS:FAUCET] BSCScan:', `https://testnet.bscscan.com/tx/${mintTx}`)
 
-      queryClient.invalidateQueries({ queryKey: ['readContract', tokenAddress] })
-      queryClient.invalidateQueries({ queryKey: ['readContracts'] })
+      setLastTxHash(tx)
+      console.log('[OBOLUS:FAUCET] Airdrop confirmed:', tx)
 
-      return mintTx
+      queryClient.invalidateQueries({ queryKey: ['solana-balance'] })
+      return tx
     } catch (e: any) {
-      console.error('[OBOLUS:FAUCET:ERROR]', { tokenSymbol, error: e.message })
+      console.error('[OBOLUS:FAUCET:ERROR]', e)
       setError(e.message)
       throw e
     } finally {
@@ -260,20 +202,9 @@ export function useMintFaucet() {
   }
 
   const mintAll = async () => {
-    console.log('[OBOLUS:FAUCET] Minting all 9 tokens...')
-    const entries = Object.entries(CONTRACT_ADDRESSES)
-      .filter(([key]) => !['RWAVault', 'ObolusOracle', 'ObolusAMM'].includes(key))
-
-    for (const [symbol, addr] of entries) {
-      try {
-        await mint(symbol, addr as string)
-        // Small delay between mints to avoid nonce issues if submitting quickly
-        await new Promise(r => setTimeout(r, 2000))
-      } catch (e: any) {
-        console.error(`[OBOLUS:FAUCET:ERROR] Failed to mint ${symbol}:`, e.message)
-      }
-    }
+    await mint('SOL')
   }
 
   return { mint, mintAll, mintingSymbol, lastTxHash, error }
 }
+

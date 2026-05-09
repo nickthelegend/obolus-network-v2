@@ -1,6 +1,18 @@
 "use client"
 
-import { useAccount, useChainId, useSwitchChain } from "wagmi"
+import { usePrivy, useWallets } from "@privy-io/react-auth"
+// import { useAccount, useChainId, useSwitchChain } from "wagmi" // REMOVED
+
+// --- STUBS ---
+const useAccount = () => {
+  const { user, authenticated } = usePrivy()
+  const { wallets } = useWallets()
+  return { address: wallets[0]?.address || user?.wallet?.address, isConnected: authenticated }
+}
+const useChainId = () => 0
+const useSwitchChain = () => ({ switchChain: (args: any) => {} })
+// -------------
+
 import { AlertCircle, RefreshCw, Unplug } from "lucide-react"
 import { Button } from "./ui/button"
 

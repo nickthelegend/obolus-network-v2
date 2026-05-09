@@ -1,18 +1,18 @@
 "use client"
 
-import { useState } from "react"
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi"
-import { parseEther, formatEther } from "viem"
+import { useState, useEffect, useMemo } from "react"
+import { usePrivy, useWallets } from "@privy-io/react-auth"
+// import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi" // REMOVED
+// import { parseEther, formatEther } from "viem" // REMOVED
 import { Loader2, TrendingUp, Vault, ArrowUpRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { SWAP_TOKENS, DEFI_ADDRESSES } from "@/lib/defi-contracts"
-import { ObolusLendingPoolABI } from "@/lib/defi-abis"
-import { ERC20ABI } from "@/lib/abis"
+// import { ObolusLendingPoolABI } from "@/lib/defi-abis" // REMOVED
+// import { ERC20ABI } from "@/lib/abis" // REMOVED
 import { Button } from "@/components/ui/button"
 import { ConnectWalletButton } from "@/components/wallet/connect-wallet-button"
 import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { useEffect, useMemo } from "react"
 import { 
   Dialog,
   DialogContent,
@@ -21,10 +21,22 @@ import {
 } from "@/components/ui/dialog"
 import { ExternalLink, CheckCircle2, X } from "lucide-react"
 
+// --- STUBS for EVM to Solana Migration ---
+const parseEther = (v: string) => BigInt(0)
+const formatEther = (v: any) => "0"
+
+const useReadContract = (args: any) => ({ data: null, isLoading: false, refetch: () => {} })
+const useWriteContract = () => ({ writeContract: () => {}, data: null, isPending: false, reset: () => {} })
+const useWaitForTransactionReceipt = (args: any) => ({ isLoading: false, isSuccess: false, isError: false, error: null })
+// ----------------------------------------
+
 const stockTokens = SWAP_TOKENS.filter(t => !t.isStable)
 
 function LendingPoolCard({ token }: { token: typeof stockTokens[0] }) {
-  const { address, isConnected } = useAccount()
+  const { authenticated: isConnected, user } = usePrivy()
+  const { wallets } = useWallets()
+  const address = wallets[0]?.address || user?.wallet?.address
+
   const [tab, setTab] = useState<'lend' | 'borrow'>('lend')
   const [amount, setAmount] = useState("")
   const [modalOpen, setModalOpen] = useState(false)
@@ -437,7 +449,7 @@ function LendingPoolCard({ token }: { token: typeof stockTokens[0] }) {
 }
 
 export default function LendingPage() {
-  const { isConnected } = useAccount()
+  const { authenticated: isConnected } = usePrivy()
 
   return (
     <div className="flex flex-col gap-8 font-mono pb-20">
