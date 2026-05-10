@@ -14,21 +14,8 @@ import { usePlatformTVL, useVaultPositions } from "@/hooks/useVaults"
 import Sparkline from "@/components/Sparkline"
 
 // --- STUBS ---
-const useChainId = () => 0
-const useReadContract = (args: any) => ({ data: null, isLoading: false })
-const formatUnits = (v: any, u: number) => "0.00"
+// (Removed EVM stubs)
 // -------------
-
-
-const ERC20_ABI = [
-  {
-    "inputs": [{ "name": "account", "type": "address" }],
-    "name": "balanceOf",
-    "outputs": [{ "name": "", "type": "uint256" }],
-    "stateMutability": "view",
-    "type": "function"
-  }
-] as const
 
 export default function VaultsPage() {
   const [filter, setFilter] = useState<'ALL' | 'MY_POSITIONS' | 'BLUE_CHIPS' | 'TECH' | 'ETF'>('ALL')

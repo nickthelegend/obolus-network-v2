@@ -7,7 +7,7 @@ import { usePrivy, useWallets } from "@privy-io/react-auth"
 // import { useAccount, useChainId, useSwitchChain } from 'wagmi' // REMOVED
 import { useAllTokenBalances, useTokenBalance } from '@/hooks/useContracts'
 import { useMintFaucet } from '@/hooks/useContractWrite'
-import { CONTRACT_ADDRESSES } from '@/lib/wagmi'
+import { CONTRACT_ADDRESSES } from '@/lib/solana/addresses'
 import { cn } from '@/lib/utils'
 
 // --- STUBS ---

@@ -30,7 +30,7 @@ import { useVaultPosition, useVaultShares, useTokenBalance, useTokenAllowance, u
 import { useShieldedDeposit, useShieldedWithdraw } from '@/hooks/useShieldedVault'
 import { usePrivy, useWallets } from "@privy-io/react-auth"
 // import { useAccount, useChainId } from 'wagmi' // REMOVED
-import { CONTRACT_ADDRESSES } from '@/lib/wagmi'
+import { CONTRACT_ADDRESSES } from '@/lib/solana/addresses'
 import { VAULTS } from '@/lib/vaults'
 import { useTokenPrice } from '@/hooks/useMarketData'
 

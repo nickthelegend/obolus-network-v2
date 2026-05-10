@@ -20,8 +20,8 @@ const NAV = [
 ]
 
 /**
- * Inner header content that uses wagmi hooks.
- * Only rendered after mount to avoid WagmiProviderNotFoundError.
+ * Inner header content.
+ * Only rendered after mount to avoid hydration mismatch.
  */
 function HeaderContent({ pathname }: { pathname: string }) {
   const [open, setOpen] = useState(false)

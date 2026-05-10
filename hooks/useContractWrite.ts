@@ -7,7 +7,7 @@ import { useAnchorProvider } from './use-anchor-provider'
 import { Program, BN } from '@coral-xyz/anchor'
 import { PROGRAM_ID, IDL } from '@/lib/solana/program'
 import { PublicKey, SystemProgram } from '@solana/web3.js'
-import { CONTRACT_ADDRESSES } from '@/lib/wagmi' // Still needed for faucet list if not migrated
+import { CONTRACT_ADDRESSES } from '@/lib/solana/addresses' // Still needed for faucet list if not migrated
 
 // --- STUBS ---
 // (Removed EVM stubs)

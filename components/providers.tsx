@@ -43,6 +43,7 @@ export function Providers({ children }: { children: ReactNode }) {
           loginMessage: "Connect to the Frontier",
           showWalletLoginFirst: true,
           walletChainType: "solana-only",
+          walletList: ["phantom", "solflare", "backpack", "detected_solana_wallets"],
         },
         loginMethods: ['email', 'wallet', 'google', 'twitter', 'apple', 'discord'],
         solana: {

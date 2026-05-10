@@ -1,6 +1,6 @@
 /**
  * Obolus API Client
- * Handles communication with the MongoDB backend with EIP-712 auth support.
+ * Handles communication with the Solana-based backend.
  */
 
 const SERVER_BASE = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:3001';
