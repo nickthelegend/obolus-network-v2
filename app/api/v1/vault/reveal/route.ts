@@ -6,7 +6,7 @@
  * Body: { account, timestamp, auth }
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyEIP712Signature } from '@/lib/server/auth';
+import { verifySolanaSignature } from '@/lib/server/auth';
 import { getShieldedPositions } from '@/lib/server/state';
 import { TOKEN_ADDRESSES } from '@/lib/tokenAddresses';
 import { getCREPrivateKey } from '@/lib/server/cre-keys';
@@ -26,13 +26,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Verify EIP-712 signature
-    const valid = await verifyEIP712Signature({
-      primaryType: 'Privacy Reveal',
-      message: { account, timestamp: BigInt(timestamp) },
-      signature: auth,
-      expectedSigner: account,
-    });
+    // Verify Signature
+    let valid = false;
+    if (auth.startsWith('0x')) {
+      const { verifyEIP712Signature } = await import('@/lib/server/auth');
+      valid = await verifyEIP712Signature({
+        primaryType: 'Privacy Reveal',
+        message: { account, timestamp: BigInt(timestamp) },
+        signature: auth,
+        expectedSigner: account,
+      });
+    } else {
+      const message = `OBOLUS_PRIVACY_REVEAL:${account}:${timestamp}`;
+      valid = await verifySolanaSignature({
+        message,
+        signature: auth,
+        publicKey: account,
+      });
+    }
 
     if (!valid) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });

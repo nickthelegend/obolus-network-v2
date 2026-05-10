@@ -7,9 +7,19 @@ import { useState, useEffect, type ReactNode } from 'react'
 import { ThemeProvider } from './theme-provider'
 import { Toaster } from "@/components/ui/sonner"
 
+import { createSolanaRpc, createSolanaRpcSubscriptions } from "@solana/kit";
+
 const solanaConnectors = toSolanaWalletConnectors({
   shouldAutoConnect: true,
 });
+
+const solanaRpcs = {
+  'solana:devnet': {
+    rpc: createSolanaRpc('https://api.devnet.solana.com'),
+    rpcSubscriptions: createSolanaRpcSubscriptions('wss://api.devnet.solana.com'),
+    blockExplorerUrl: 'https://explorer.solana.com',
+  },
+} as const;
 
 export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(() => new QueryClient())
@@ -23,7 +33,7 @@ export function Providers({ children }: { children: ReactNode }) {
 
   return (
     <PrivyProvider
-      appId="cmnxrfag1001j0dl2xynzgd6n"
+      appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || "cmoycfy9d03c10cl59t5gydne"}
       config={{
         appearance: {
           theme: 'dark',
@@ -33,15 +43,11 @@ export function Providers({ children }: { children: ReactNode }) {
           loginMessage: "Connect to the Frontier",
           showWalletLoginFirst: true,
           walletChainType: "solana-only",
-          walletList: ["phantom", "solflare", "backpack", "detected_solana_wallets"],
         },
         loginMethods: ['email', 'wallet', 'google', 'twitter', 'apple', 'discord'],
-        solanaClusters: [
-          {
-            name: 'devnet',
-            rpcUrl: 'https://api.devnet.solana.com',
-          },
-        ],
+        solana: {
+          rpcs: solanaRpcs,
+        },
         embeddedWallets: {
           solana: {
             createOnLogin: "users-without-wallets",

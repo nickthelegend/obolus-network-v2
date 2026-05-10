@@ -6,7 +6,7 @@
  * Body: { account, token, amount, encryptedAmount, depositTxHash, vaultId, timestamp, auth }
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyEIP712Signature } from '@/lib/server/auth';
+import { verifySolanaSignature } from '@/lib/server/auth';
 import { createDepositSlot, createShieldedPosition, queueTransfer } from '@/lib/server/state';
 
 const POOL_WALLET = process.env.POOL_WALLET_ADDRESS || '0x0000000000000000000000000000000000000000';
@@ -21,13 +21,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Verify EIP-712 signature
-    const valid = await verifyEIP712Signature({
-      primaryType: 'Shielded Deposit',
-      message: { account, token, amount: BigInt(amount), timestamp: BigInt(timestamp) },
-      signature: auth,
-      expectedSigner: account,
-    });
+    // Verify Signature
+    let valid = false;
+    if (auth.startsWith('0x')) {
+      // Legacy EVM/EIP-712
+      const { verifyEIP712Signature } = await import('@/lib/server/auth');
+      valid = await verifyEIP712Signature({
+        primaryType: 'Shielded Deposit',
+        message: { account, token, amount: BigInt(amount), timestamp: BigInt(timestamp) },
+        signature: auth,
+        expectedSigner: account,
+      });
+    } else {
+      // Solana Message Signing
+      const message = `OBOLUS_SHIELDED_DEPOSIT:${account}:${amount}:${timestamp}`;
+      valid = await verifySolanaSignature({
+        message,
+        signature: auth,
+        publicKey: account,
+      });
+    }
 
     if (!valid) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });

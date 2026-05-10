@@ -12,13 +12,6 @@
 
 import { useState, useCallback } from 'react';
 import { usePrivy, useWallets } from '@privy-io/react-auth';
-// import { useSignTypedData } from 'wagmi'; // REMOVED
-
-// --- STUBS ---
-const useSignTypedData = () => ({ signTypedDataAsync: async (args: any) => "solana_sig_stub" })
-// -------------
-
-import { OBOLUS_DOMAIN, EIP712_TYPES } from '@/lib/eip712';
 import { api } from '@/lib/api';
 
 export interface RevealedPosition {
@@ -30,10 +23,9 @@ export interface RevealedPosition {
 }
 
 export function usePrivacyReveal() {
-  const { user } = usePrivy();
+  const { user, signMessage } = usePrivy();
   const { wallets } = useWallets();
   const address = wallets[0]?.address || user?.wallet?.address;
-  const { signTypedDataAsync } = useSignTypedData();
 
   const [revealed, setRevealed] = useState(false);
   const [positions, setPositions] = useState<RevealedPosition[]>([]);
@@ -48,18 +40,11 @@ export function usePrivacyReveal() {
     try {
       const timestamp = Math.floor(Date.now() / 1000);
 
-      // Sign privacy reveal request
-      const signature = await signTypedDataAsync({
-        domain: OBOLUS_DOMAIN,
-        types: { 'Privacy Reveal': EIP712_TYPES['Privacy Reveal'] },
-        primaryType: 'Privacy Reveal',
-        message: {
-          account: address,
-          timestamp: BigInt(timestamp),
-        },
-      });
+      // Step 1: Sign Solana message
+      const message = `OBOLUS_PRIVACY_REVEAL:${address}:${timestamp}`;
+      const signature = await signMessage(message);
 
-      // Fetch encrypted positions from server
+      // Step 2: Fetch encrypted positions from server
       const result = await api.post<{
         positions: Array<{
           token: string;
@@ -89,7 +74,7 @@ export function usePrivacyReveal() {
     } finally {
       setLoading(false);
     }
-  }, [address, signTypedDataAsync]);
+  }, [address, signMessage]);
 
   const hide = useCallback(() => {
     setRevealed(false);
